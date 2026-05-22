@@ -1,0 +1,64 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# ========================
+# Virtual Environment
+# ========================
+venv/
+env/
+ENV/
+.venv/
+
+# ========================
+# Environment Variables (SECRETS)
+# ========================
+.env
+# Keep .env.example as reference
+!.env.example
+
+# ========================
+# Uploads (user files - not for version control)
+# ========================
+uploads/
+
+# ========================
+# IDE & OS
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# Alembic
+# ========================
+# Keep migrations, but ignore any local overrides
+alembic/versions/*.pyc
+
+# ========================
+# Logs & Temp
+# ========================
+*.log
+tmp/
+temp/
