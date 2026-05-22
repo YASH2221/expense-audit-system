@@ -210,28 +210,67 @@ async def verify_evidence_amount(
     current_user: User = Depends(get_current_user)
 ):
     """
-    AI-powered check to extract total from receipt and compare with claim amount.
+    [DEPRECATED - use /claim/{claim_id}/ai-verify instead]
+    AI-powered check for a single evidence file.
     """
     from app.models.enums import AuditAction
-    
     try:
         path, evidence, claim = await service.get_evidence_file(evidence_id)
-        
-        # Call Real Gemini AI Service
         ai_result = await ai_service.analyze_receipt(path, float(claim.amount))
-        
-        # Log AI action to audit trail
         await service.audit_service.log_action(
             actor_id=current_user.id,
             action=AuditAction.EXTERNAL_VALIDATION_TRIGGERED,
             claim_id=claim.id,
+            new_value={"evidence_id": evidence_id, "ai_result": ai_result}
+        )
+        await service.evidence_repo.session.commit()
+        return ai_result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/claim/{claim_id}/ai-verify")
+async def verify_claim_all_evidence(
+    claim_id: int,
+    service: EvidenceService = Depends(get_evidence_service),
+    ai_service: Any = Depends(get_ai_service),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    AI-powered verification for ALL evidence/invoices of a claim.
+
+    - Fetches every uploaded invoice for the given claim.
+    - Sends each invoice to Gemini AI for item extraction.
+    - Sums up all extracted totals across invoices.
+    - Compares combined total against the claim amount.
+    - Returns per-invoice breakdown + overall match result.
+    """
+    from app.models.enums import AuditAction
+    try:
+        # Get all evidence file paths + claim object
+        evidence_files, claim = await service.get_claim_evidence_files(claim_id)
+
+        # Analyze all invoices together
+        ai_result = await ai_service.analyze_claim_receipts(
+            evidence_files=evidence_files,
+            claim_amount=float(claim.amount)
+        )
+
+        # Log to audit trail
+        await service.audit_service.log_action(
+            actor_id=current_user.id,
+            action=AuditAction.EXTERNAL_VALIDATION_TRIGGERED,
+            claim_id=claim_id,
             new_value={
-                "evidence_id": evidence_id,
-                "ai_result": ai_result
+                "invoices_checked": len(evidence_files),
+                "combined_total": ai_result.get("combined_extracted_total"),
+                "claim_amount": float(claim.amount),
+                "is_match": ai_result.get("is_match")
             }
         )
         await service.evidence_repo.session.commit()
-        
+
         return ai_result
+
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

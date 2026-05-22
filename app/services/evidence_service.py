@@ -181,6 +181,42 @@ class EvidenceService:
         file_path = os.path.join(settings.UPLOADS_DIR, evidence.content_hash)
         return file_path, evidence, claim
 
+    async def get_claim_evidence_files(self, claim_id: int):
+        """
+        Returns all evidence file paths for a given claim_id,
+        along with the Claim object. Used for multi-invoice AI verification.
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from app.models.evidence import Evidence
+        from app.models.claim import Claim
+
+        # Load claim with all its evidence
+        query = (
+            select(Claim)
+            .where(Claim.id == claim_id)
+            .options(selectinload(Claim.evidence))
+        )
+        result = await self.evidence_repo.session.execute(query)
+        claim = result.scalars().first()
+
+        if not claim:
+            raise ValueError(f"Claim #{claim_id} not found")
+
+        if not claim.evidence:
+            raise ValueError(f"No evidence found for Claim #{claim_id}")
+
+        file_paths = []
+        for ev in claim.evidence:
+            path = os.path.join(settings.UPLOADS_DIR, ev.content_hash)
+            if os.path.exists(path):
+                file_paths.append({"evidence_id": ev.id, "path": path, "file_name": ev.file_name})
+
+        if not file_paths:
+            raise ValueError(f"No physical files found for Claim #{claim_id}")
+
+        return file_paths, claim
+
     async def scan_and_flag_reuse(self, claim_id: int, actor_id: int) -> List[EvidenceReuseFlag]:
         """
         Manually scan all evidence in a claim and flag any reuse found across the system.
